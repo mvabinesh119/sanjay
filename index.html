@@ -2,89 +2,71 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Li-Fi Transmitter</title>
-  <style>
-    body {
-      background: #101820;
-      color: white;
-      font-family: Arial;
-      text-align: center;
-      padding: 40px 15px;
-    }
-    button {
-      padding: 18px 35px;
-      margin: 12px;
-      font-size: 20px;
-      border: none;
-      border-radius: 12px;
-      background: #00c878;
-      color: white;
-    }
-  </style>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Li-Fi HELLO Transmitter</title>
+<style>
+body {
+  background: #101820;
+  color: white;
+  font-family: Arial;
+  text-align: center;
+  padding: 35px 15px;
+}
+button {
+  background: #00c878;
+  color: white;
+  padding: 20px;
+  border: 0;
+  border-radius: 12px;
+  font-size: 20px;
+  width: 90%;
+}
+#status {font-size: 20px; margin: 25px;}
+</style>
 </head>
 <body>
 
 <h1>Li-Fi Transmitter</h1>
-<h2>Message: HELLO</h2>
-<p id="status">Ready to transmit</p>
-
-<button onclick="startTransmission()">
-  TRANSMIT HELLO
-</button>
+<h2>HELLO</h2>
+<p id="status">Ready</p>
+<button onclick="start()">TRANSMIT HELLO</button>
 
 <script>
 let track;
 
-const dot = 400;
-const dash = 1200;
-const gap = 400;
-const letterGap = 1600;
+const DOT = 1000;
+const DASH = 3000;
+const SYMBOL_GAP = 1000;
+const LETTER_GAP = 4000;
 
-const word = [
-  "....",  // H
-  ".",     // E
-  ".-..",  // L
-  ".-..",  // L
-  "---"    // O
-];
+const letters = ["....", ".", ".-..", ".-..", "---"];
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+const sleep = ms =>
+  new Promise(resolve => setTimeout(resolve, ms));
 
-async function flashlight(on) {
+async function light(on) {
   await track.applyConstraints({
     advanced: [{ torch: on }]
   });
 }
 
 async function sendLetter(code) {
-
   for (let i = 0; i < code.length; i++) {
 
-    await flashlight(true);
-
-    if (code[i] === ".") {
-      await sleep(dot);
-    } else {
-      await sleep(dash);
-    }
-
-    await flashlight(false);
+    await light(true);
+    await sleep(code[i] === "." ? DOT : DASH);
+    await light(false);
 
     if (i < code.length - 1) {
-      await sleep(gap);
+      await sleep(SYMBOL_GAP);
     }
   }
 }
 
-async function startTransmission() {
-
-  document.getElementById("status").innerText =
-    "Requesting flashlight access...";
-
+async function start() {
   try {
+    document.getElementById("status").innerText =
+      "Requesting camera...";
 
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: "environment" } }
@@ -93,37 +75,42 @@ async function startTransmission() {
     track = stream.getVideoTracks()[0];
 
     if (!track.getCapabilities().torch) {
-      throw new Error("Flashlight control not supported");
+      throw new Error("Torch not supported");
     }
 
-    for (let i = 0; i < word.length; i++) {
+    await light(false);
+
+    document.getElementById("status").innerText =
+      "Position phone. Starting in 5 seconds...";
+
+    await sleep(5000);
+
+    for (let i = 0; i < letters.length; i++) {
 
       document.getElementById("status").innerText =
-        "Transmitting letter " + (i + 1) + " of 5";
+        "Sending letter " + (i + 1) + " / 5";
 
-      await sendLetter(word[i]);
+      await sendLetter(letters[i]);
 
-      if (i < word.length - 1) {
-        await sleep(letterGap);
+      if (i < letters.length - 1) {
+        await sleep(LETTER_GAP);
       }
     }
 
-    await flashlight(false);
-
-    document.getElementById("status").innerText =
-      "HELLO transmitted successfully!";
-
+    await light(false);
     track.stop();
+    document.getElementById("status").innerText =
+      "HELLO transmission finished!";
 
   } catch (error) {
-
+    if (track) {
+      try { await light(false); } catch(e) {}
+      track.stop();
+    }
     document.getElementById("status").innerText =
-      "Error: " + error.message;
-
-    if (track) track.stop();
+      "ERROR: " + error.message;
   }
 }
 </script>
-
 </body>
 </html>
