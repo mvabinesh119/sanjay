@@ -1,0 +1,129 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Li-Fi Transmitter</title>
+  <style>
+    body {
+      background: #101820;
+      color: white;
+      font-family: Arial;
+      text-align: center;
+      padding: 40px 15px;
+    }
+    button {
+      padding: 18px 35px;
+      margin: 12px;
+      font-size: 20px;
+      border: none;
+      border-radius: 12px;
+      background: #00c878;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Li-Fi Transmitter</h1>
+<h2>Message: HELLO</h2>
+<p id="status">Ready to transmit</p>
+
+<button onclick="startTransmission()">
+  TRANSMIT HELLO
+</button>
+
+<script>
+let track;
+
+const dot = 400;
+const dash = 1200;
+const gap = 400;
+const letterGap = 1600;
+
+const word = [
+  "....",  // H
+  ".",     // E
+  ".-..",  // L
+  ".-..",  // L
+  "---"    // O
+];
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function flashlight(on) {
+  await track.applyConstraints({
+    advanced: [{ torch: on }]
+  });
+}
+
+async function sendLetter(code) {
+
+  for (let i = 0; i < code.length; i++) {
+
+    await flashlight(true);
+
+    if (code[i] === ".") {
+      await sleep(dot);
+    } else {
+      await sleep(dash);
+    }
+
+    await flashlight(false);
+
+    if (i < code.length - 1) {
+      await sleep(gap);
+    }
+  }
+}
+
+async function startTransmission() {
+
+  document.getElementById("status").innerText =
+    "Requesting flashlight access...";
+
+  try {
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" } }
+    });
+
+    track = stream.getVideoTracks()[0];
+
+    if (!track.getCapabilities().torch) {
+      throw new Error("Flashlight control not supported");
+    }
+
+    for (let i = 0; i < word.length; i++) {
+
+      document.getElementById("status").innerText =
+        "Transmitting letter " + (i + 1) + " of 5";
+
+      await sendLetter(word[i]);
+
+      if (i < word.length - 1) {
+        await sleep(letterGap);
+      }
+    }
+
+    await flashlight(false);
+
+    document.getElementById("status").innerText =
+      "HELLO transmitted successfully!";
+
+    track.stop();
+
+  } catch (error) {
+
+    document.getElementById("status").innerText =
+      "Error: " + error.message;
+
+    if (track) track.stop();
+  }
+}
+</script>
+
+</body>
+</html>
