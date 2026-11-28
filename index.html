@@ -1,116 +1,87 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Li-Fi HELLO Transmitter</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Morse Light Transmitter</title>
 <style>
-body {
-  background: #101820;
-  color: white;
-  font-family: Arial;
-  text-align: center;
-  padding: 35px 15px;
-}
-button {
-  background: #00c878;
-  color: white;
-  padding: 20px;
-  border: 0;
-  border-radius: 12px;
-  font-size: 20px;
-  width: 90%;
-}
-#status {font-size: 20px; margin: 25px;}
+:root{--bg:#fff;--fg:#111;--card:#f2f2f2;color-scheme:light dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161616;--fg:#eee;--card:#262626}}
+body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif;max-width:480px}
+label{display:block;margin:12px 0 2px;font-size:14px}
+input[type=text],input[type=number]{width:100%;box-sizing:border-box;padding:10px;font-size:16px;border-radius:8px;border:1px solid #888;background:var(--card);color:var(--fg)}
+button{padding:12px 16px;font-size:16px;margin:14px 8px 0 0;border-radius:8px;border:0;background:#2563eb;color:#fff}
+button.alt{background:#555}
+#morse{font-family:monospace;font-size:15px;background:var(--card);padding:10px;border-radius:8px;word-break:break-all;margin-top:12px;min-height:20px}
+#status{margin-top:12px;font-size:14px;min-height:20px}
+#flash{position:fixed;inset:0;background:#000;display:none;z-index:9;align-items:center;justify-content:center;color:#555;font-size:14px}
 </style>
 </head>
 <body>
-
-<h1>Li-Fi Transmitter</h1>
-<h2>HELLO</h2>
-<p id="status">Ready</p>
-<button onclick="start()">TRANSMIT HELLO</button>
-
+<h2>Morse Light Transmitter</h2>
+<label for="msg">Message (A–Z, 0–9, spaces)</label>
+<input type="text" id="msg" value="SANJAY" autocapitalize="characters" autocomplete="off">
+<label for="unit">Unit = dot length (ms) — set the same value in the Arduino code</label>
+<input type="number" id="unit" value="400" min="100" max="2000">
+<div id="morse"></div>
+<button id="go">Send with screen</button>
+<button id="torch" class="alt">Send with flashlight</button>
+<div id="status">Max brightness, phone 2–5 cm from the sensor, dim room. Tap the screen to stop. Flashlight mode needs Android Chrome.</div>
+<div id="flash">tap to stop</div>
 <script>
-let track;
-
-const DOT = 1000;
-const DASH = 3000;
-const SYMBOL_GAP = 1000;
-const LETTER_GAP = 4000;
-
-const letters = ["....", ".", ".-..", ".-..", "---"];
-
-const sleep = ms =>
-  new Promise(resolve => setTimeout(resolve, ms));
-
-async function light(on) {
-  await track.applyConstraints({
-    advanced: [{ torch: on }]
-  });
-}
-
-async function sendLetter(code) {
-  for (let i = 0; i < code.length; i++) {
-
-    await light(true);
-    await sleep(code[i] === "." ? DOT : DASH);
-    await light(false);
-
-    if (i < code.length - 1) {
-      await sleep(SYMBOL_GAP);
-    }
-  }
-}
-
-async function start() {
-  try {
-    document.getElementById("status").innerText =
-      "Requesting camera...";
-
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" } }
+const M={A:".-",B:"-...",C:"-.-.",D:"-..",E:".",F:"..-.",G:"--.",H:"....",I:"..",J:".---",K:"-.-",L:".-..",M:"--",N:"-.",O:"---",P:".--.",Q:"--.-",R:".-.",S:"...",T:"-",U:"..-",V:"...-",W:".--",X:"-..-",Y:"-.--",Z:"--..",
+0:"-----",1:".----",2:"..---",3:"...--",4:"....-",5:".....",6:"-....",7:"--...",8:"---..",9:"----."};
+const $=id=>document.getElementById(id);
+let stop=false;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const clean=()=>$("msg").value.toUpperCase().replace(/[^A-Z0-9 ]/g,"").replace(/\s+/g," ").trim();
+function preview(){ $("morse").textContent=clean().split(" ").map(w=>[...w].map(c=>M[c]).join(" ")).join("  /  "); }
+$("msg").oninput=preview; preview();
+function plan(){
+  const U=+$("unit").value, out=[];
+  const words=clean().split(" ").filter(Boolean);
+  words.forEach((w,wi)=>{
+    [...w].forEach((ch,li)=>{
+      const code=M[ch];
+      [...code].forEach((s,si)=>{
+        out.push([true,(s==="."?1:3)*U,ch]);
+        if(si<code.length-1) out.push([false,U,ch]);
+      });
+      if(li<w.length-1) out.push([false,3*U,ch]);
     });
-
-    track = stream.getVideoTracks()[0];
-
-    if (!track.getCapabilities().torch) {
-      throw new Error("Torch not supported");
-    }
-
-    await light(false);
-
-    document.getElementById("status").innerText =
-      "Position phone. Starting in 5 seconds...";
-
-    await sleep(5000);
-
-    for (let i = 0; i < letters.length; i++) {
-
-      document.getElementById("status").innerText =
-        "Sending letter " + (i + 1) + " / 5";
-
-      await sendLetter(letters[i]);
-
-      if (i < letters.length - 1) {
-        await sleep(LETTER_GAP);
-      }
-    }
-
-    await light(false);
-    track.stop();
-    document.getElementById("status").innerText =
-      "HELLO transmission finished!";
-
-  } catch (error) {
-    if (track) {
-      try { await light(false); } catch(e) {}
-      track.stop();
-    }
-    document.getElementById("status").innerText =
-      "ERROR: " + error.message;
-  }
+    if(wi<words.length-1) out.push([false,7*U,"␣"]);
+  });
+  return out;
 }
+async function run(setLight,done){
+  stop=false;
+  if(!clean()){$("status").textContent="Type a message first.";done();return}
+  $("status").textContent="Starting in 2 seconds…";
+  await sleep(2000);
+  for(const [on,ms,ch] of plan()){
+    if(stop) break;
+    setLight(on);
+    if(on) $("status").textContent="Sending: "+ch;
+    await sleep(ms);
+  }
+  setLight(false);
+  $("status").textContent=stop?"Stopped.":"Done. Keep the phone dark for a few seconds so the receiver prints the message.";
+  done();
+}
+$("go").onclick=()=>{
+  const f=$("flash"); f.style.display="flex"; f.style.background="#000";
+  run(on=>{f.style.background=on?"#fff":"#000"},()=>{f.style.display="none"});
+};
+$("flash").onclick=()=>{stop=true;$("flash").style.display="none"};
+$("torch").onclick=async()=>{
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
+    const track=stream.getVideoTracks()[0];
+    const caps=track.getCapabilities?track.getCapabilities():{};
+    if(!caps.torch){$("status").textContent="Flashlight control isn’t available here. Use the screen option.";track.stop();return}
+    await run(on=>track.applyConstraints({advanced:[{torch:on}]}).catch(()=>{}),()=>track.stop());
+  }catch(e){$("status").textContent="Camera access denied or unsupported. Use the screen option."}
+};
 </script>
 </body>
 </html>
